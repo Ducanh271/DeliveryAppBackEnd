@@ -1,0 +1,23 @@
+FoodDeliveryApp
+Nguoi dung:
+- Tim kiem san pham
+- Tao don hang, mua san pham
+- Danh gia san pham (phai xac nhan da nhan)
+- xac nhan don hang
+- xem qua trinh, trang thai don hang
+- Nhan tin shipper
+Shipper:
+- Nhan don hang
+- Nhan tin user
+- Xac nhan hoan thanh don
+Admin: 
+- Quan ly san pham:
+	+ them sua xoa san pham
+	+ cap nhat flash sale
+- Quan ly tai khoan (cap phat tk shipper)
+	+ them xoa tai khoan shipper
+	+ xoa tai khoan user
+- Quan ly doanh thu:
+	+ Xem doanh thu theo thang, theo ngay
+
+
