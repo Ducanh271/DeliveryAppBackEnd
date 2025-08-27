@@ -52,9 +52,25 @@ func GetRefreshTokensByUserID(db *sql.DB, userID int) ([]RefreshToken, error) {
 
 	return tokens, nil
 }
+func CheckRefreshToken(db *sql.DB, token string) (bool, error) {
+	query := `select 1 from refresh_tokens where token = ?`
+	var exists int
+	err := db.QueryRow(query, token).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
+}
 func DeleteRefreshToken(db *sql.DB, token string) error {
 	query := `delete from refresh_tokens where token = ?`
 	_, err := db.Exec(query, token)
+	return err
+}
+func UpdateRefreshToken(db *sql.DB, old_token string, new_token string) error {
+	query := `update refresh_tokens set token = ? where token = ?`
+	_, err := db.Exec(query, new_token, old_token)
 	return err
 }
 func DeleteUserRefreshToken(db *sql.DB, userID int) error {

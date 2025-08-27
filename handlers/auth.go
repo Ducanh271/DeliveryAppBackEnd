@@ -2,15 +2,19 @@ package handlers
 
 import (
 	"database/sql"
-	"example.com/delivery-app/middleware"
-	"example.com/delivery-app/models"
+	"encoding/base64"
+	"errors"
 	"log"
 	"math/rand"
 	"net/http"
 	"net/smtp"
 	"time"
 
+	"example.com/delivery-app/middleware"
+	"example.com/delivery-app/models"
+
 	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -27,6 +31,34 @@ func sendEmail(to, otp string) error {
 	msg := []byte("Subject: OTP Verifycation\n\nYour OTP code is: " + otp)
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 	return smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
+}
+
+// func create random string for request token
+func generateRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+// func create access token and refresh token
+func createTokens(user models.User) (error, string, string) {
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"userID": user.ID,
+		"role":   user.Role,
+		"exp":    time.Now().Add(15 * time.Minute).Unix(),
+	})
+	accessTokenStr, err := accessToken.SignedString([]byte(middleware.JwtKey))
+	if err != nil {
+		return errors.New("Can't create access token"), "", ""
+	}
+	refreshTokenStr, err := generateRefreshToken()
+	if err != nil {
+		return errors.New("Can't create refresh token"), "", ""
+	}
+	return nil, accessTokenStr, refreshTokenStr
 }
 
 type SignUpRequest struct {
@@ -185,6 +217,15 @@ func LoginHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	exist, err := models.CheckEmailExists(db, req.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not check email"})
+		return
+	}
+	if exist == false {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email is not exist"})
+		return
+	}
 	user, err := models.GetUserByEmail(db, req.Email)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
@@ -203,29 +244,12 @@ func LoginHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Please verify your email before login"})
 		return
 	}
+	err, accessTokenStr, refreshTokenStr := createTokens(*user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		return
+	}
 
-	// create access token
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"role":    user.Role,
-		"exp":     time.Now().Add(15 * time.Minute).Unix(),
-	})
-	accessTokenStr, err := accessToken.SignedString(middleware.JwtKey)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create access token"})
-		return
-	}
-	// create refresh token
-	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"role":    user.Role,
-		"exp":     time.Now().Add(7 * 24 * time.Hour).Unix(),
-	})
-	refreshTokenStr, err := refreshToken.SignedString(middleware.JwtKey)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create refresh token"})
-		return
-	}
 	err = models.SaveRefreshToken(db, user.ID, refreshTokenStr, time.Now().Add(7*24*time.Hour))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save refresh token"})
@@ -233,6 +257,37 @@ func LoginHandler(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"access_token": accessTokenStr, "refresh_token": refreshTokenStr})
+}
+func RefreshTokenHandler(c *gin.Context, db *sql.DB) {
+	var req RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+	refreshToken, err := models.GetRefreshTokenByToken(db, req.RefreshToken)
+
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+		return
+	}
+	if refreshToken.ExpiresAt.Before(time.Now()) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token is expired"})
+		return
+	}
+	user, err := models.GetUserByID(db, refreshToken.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Server can't get user info from request"})
+		return
+	}
+	err, accessTokenStr, newRefreshTokenStr := createTokens(*user)
+	err = models.UpdateRefreshToken(db, req.RefreshToken, newRefreshTokenStr)
+	if err != nil {
+		log.Fatal(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Server can't update refresh token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"access_token": accessTokenStr, "refresh_token": newRefreshTokenStr})
+
 }
 func ForgetPasswordHandler(c *gin.Context, db *sql.DB) {
 	var req struct {

@@ -21,6 +21,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB) {
 	api.POST("logout", func(c *gin.Context) {
 		handlers.LogoutHandler(c, db)
 	})
+	api.POST("/refresh-access-token", func(c *gin.Context) {
+		handlers.RefreshTokenHandler(c, db)
+	})
 	api.POST("/verify-otp", func(c *gin.Context) {
 		handlers.VerifyOTPHandler(c, db)
 	})
