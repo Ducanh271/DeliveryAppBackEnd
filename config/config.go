@@ -1,27 +1,53 @@
 package config
 
 import (
-	"fmt"
+	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
-var (
-	DBUser     = getEnv("DB_USER", "root")
-	DBPassword = getEnv("DB_PASSWORD", "Zxc13sdw@")
-	DBHost     = getEnv("DB_HOST", "127.0.0.1")
-	DBPort     = getEnv("DB_PORT", "3306")
-	DBName     = getEnv("DB_NAME", "DeliveryAppDB")
-	JwtKey     = []byte("super_secret_key") // Để .env thì bảo mật hơn
-)
-
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
+type EmailConfig struct {
+	From     string
+	Password string
+	Host     string
+	Port     string
 }
 
-func GetDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
-		DBUser, DBPassword, DBHost, DBPort, DBName)
+var (
+	CloudinaryURL string
+	Email         EmailConfig
+	JWTSecret     string
+	DBUser        string
+	DBPass        string
+	DBHost        string
+	DBPort        string
+	DBName        string
+)
+
+func LoadConfig() {
+	// Load .env file
+	err := godotenv.Load("../.env")
+	if err != nil {
+		log.Println("⚠️  Không tìm thấy file .env, dùng biến môi trường có sẵn")
+	}
+	Email = EmailConfig{
+		From:     os.Getenv("EMAIL_FROM"),
+		Password: os.Getenv("EMAIL_PASSWORD"),
+		Host:     os.Getenv("SMTP_HOST"),
+		Port:     os.Getenv("SMTP_PORT"),
+	}
+	//cloudinary url
+	CloudinaryURL = os.Getenv("CLOUDINARY_URL")
+	// Gán giá trị
+	JWTSecret = os.Getenv("JWT_SECRET")
+	DBUser = os.Getenv("DB_USER")
+	DBPass = os.Getenv("DB_PASS")
+	DBHost = os.Getenv("DB_HOST")
+	DBPort = os.Getenv("DB_PORT")
+	DBName = os.Getenv("DB_NAME")
+
+	if JWTSecret == "" {
+		log.Fatal("❌ JWT_SECRET chưa được set trong .env")
+	}
 }

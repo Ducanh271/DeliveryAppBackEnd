@@ -5,11 +5,12 @@ import (
 	"strings"
 	"time"
 
+	"example.com/delivery-app/config"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var JwtKey = []byte("my_secret_key")
+var JwtKey = []byte(config.JWTSecret)
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -47,13 +48,13 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 		role, ok := claims["role"].(string)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Token Claims"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Token Claims: role"})
 			c.Abort()
 			return
 		}
-		userIDFloat, ok := claims["user_id"].(float64)
+		userIDFloat, ok := claims["userID"].(float64)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Token Claims"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Token Claims: id"})
 			c.Abort()
 		}
 		userID := int(userIDFloat)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"example.com/delivery-app/config"
 	"example.com/delivery-app/database"
 	"example.com/delivery-app/routes"
 	"log"
@@ -10,6 +11,7 @@ import (
 
 func main() {
 	// Init DB
+	config.LoadConfig()
 	database.InitDB()
 	defer database.DB.Close()
 	if err := database.CreateDefaultAdmin(database.DB); err != nil {

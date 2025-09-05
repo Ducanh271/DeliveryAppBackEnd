@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"example.com/delivery-app/config"
 	"fmt"
 	"log"
 
@@ -11,8 +12,14 @@ import (
 var DB *sql.DB
 
 func InitDB() {
-	dsn := "root:Zxc13sdw@@tcp(127.0.0.1:3306)/DeliveryAppDB?parseTime=true"
 
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
+		config.DBUser,
+		config.DBPass,
+		config.DBHost,
+		config.DBPort,
+		config.DBName,
+	)
 	var err error
 	DB, err = sql.Open("mysql", dsn)
 	if err != nil {

@@ -40,4 +40,7 @@ func SetupRoutes(r *gin.Engine, db *sql.DB) {
 	protected.POST("/admin/create-shipper", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
 		handlers.CreateShipper(c, db)
 	})
+	protected.POST("/admin/create-product", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.CreateNewProductHandler(c, db)
+	})
 }

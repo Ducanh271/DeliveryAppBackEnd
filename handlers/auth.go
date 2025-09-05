@@ -5,29 +5,39 @@ import (
 	"encoding/base64"
 	"errors"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/smtp"
 	"time"
 
+	"example.com/delivery-app/config"
 	"example.com/delivery-app/middleware"
 	"example.com/delivery-app/models"
 
 	"fmt"
 
+	"crypto/rand"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"math/big"
 )
 
-func generateOTP() string {
-	return fmt.Sprintf("%06d", rand.Intn(1000000))
+func generateOTP() (string, error) {
+	// Tạo số ngẫu nhiên từ 0 đến 999999 (6 chữ số)
+	max := big.NewInt(1000000)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate OTP: %v", err)
+	}
+	// Định dạng số thành chuỗi 6 chữ số, thêm số 0 nếu cần
+	return fmt.Sprintf("%06d", n), nil
 }
+
 func sendEmail(to, otp string) error {
-	from := "nguyenduca03@gmail.com"
-	password := "sfpy lhfw qrai bbja"
-	smtpHost := "smtp.gmail.com"
-	smtpPort := "587"
+	from := config.Email.From
+	password := config.Email.Password
+	smtpHost := config.Email.Host
+	smtpPort := config.Email.Port
 	msg := []byte("Subject: OTP Verifycation\n\nYour OTP code is: " + otp)
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 	return smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
@@ -165,7 +175,11 @@ func SignupHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 	// create otp
-	otp := generateOTP()
+	otp, err := generateOTP()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not gen opt"})
+		return
+	}
 	expiry := time.Now().Add(10 * time.Minute)
 	// update otp to db
 	if err := models.UpdateOTP(db, user.Email, otp, expiry); err != nil {
@@ -302,7 +316,11 @@ func ForgetPasswordHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Email not found"})
 		return
 	}
-	otp := generateOTP()
+	otp, err := generateOTP()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not gen OTP"})
+		return
+	}
 	expiry := time.Now().Add(10 * time.Minute)
 	if err := models.SetResetOTP(db, user.Email, otp, expiry); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not set OTP"})
@@ -423,16 +441,8 @@ func LogoutHandler(c *gin.Context, db *sql.DB) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 	}
-	claims := jwt.MapClaims{}
-	token, err := jwt.ParseWithClaims(req.RefreshToken, claims, func(token *jwt.Token) (interface{}, error) {
-		return middleware.JwtKey, nil
-	})
-	if err != nil || !token.Valid {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid refresh token"})
-		return
-	}
 
-	err = models.DeleteRefreshToken(db, req.RefreshToken)
+	err := models.DeleteRefreshToken(db, req.RefreshToken)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete refresh token"})
 		return
