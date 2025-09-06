@@ -33,6 +33,9 @@ func generateOTP() (string, error) {
 	return fmt.Sprintf("%06d", n), nil
 }
 
+//	func generateOTP() string {
+//		return fmt.Sprintf("%06d", rand.Intn(1000000))
+//	}
 func sendEmail(to, otp string) error {
 	from := config.Email.From
 	password := config.Email.Password

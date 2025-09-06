@@ -27,6 +27,15 @@ func SetupRoutes(r *gin.Engine, db *sql.DB) {
 	api.POST("/verify-otp", func(c *gin.Context) {
 		handlers.VerifyOTPHandler(c, db)
 	})
+	products := api.Group("/products")
+	{
+		products.GET("", func(c *gin.Context) {
+			handlers.GetProductsHandler(c, db)
+		})
+		products.GET("/:id", func(c *gin.Context) {
+			handlers.GetProductByIDHandler(c, db)
+		})
+	}
 	api.POST("/forgot-password", func(c *gin.Context) { handlers.ForgetPasswordHandler(c, db) })
 	api.POST("/verify-otp-for-reset", func(c *gin.Context) { handlers.VerifyOTPForResetHandler(c, db) })
 	api.POST("/reset-password", func(c *gin.Context) { handlers.ResetPasswordHandler(c, db) })

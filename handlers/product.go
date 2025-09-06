@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -115,5 +116,78 @@ func CreateNewProductHandler(c *gin.Context, db *sql.DB) {
 		"message": "Created new product successfully",
 		"product": product,
 		"images":  urls,
+	})
+}
+
+// func get products
+func GetProductsHandler(c *gin.Context, db *sql.DB) {
+	// Lấy query param
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+
+	products, total, err := models.GetProductsPaginated(db, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	totalPages := (total + limit - 1) / limit
+
+	c.JSON(http.StatusOK, gin.H{
+		"products": products,
+		"pagination": gin.H{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
+}
+func GetProductByIDHandler(c *gin.Context, db *sql.DB) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		return
+	}
+
+	product, err := models.GetProductByID(db, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	images, err := models.GetImagesByProductID(db, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load product images"})
+		return
+	}
+	productRes := models.ProductResponse{
+		ID:          product.ID,
+		Name:        product.Name,
+		Description: product.Description,
+		Price:       product.Price,
+		QtyInitial:  product.QtyInitial,
+		QtySold:     product.QtySold,
+		CreatedAt:   product.CreatedAt,
+		Images:      images,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"product": productRes,
 	})
 }
