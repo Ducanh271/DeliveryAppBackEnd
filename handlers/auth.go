@@ -191,7 +191,7 @@ func SignupHandler(c *gin.Context, db *sql.DB) {
 	}
 	// send email
 	if err := sendEmail(user.Email, otp); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not send OTP gmail"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
