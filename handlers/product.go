@@ -3,15 +3,16 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"mime/multipart"
+	"net/http"
+	"strconv"
+	"time"
+
 	"example.com/delivery-app/config"
 	"example.com/delivery-app/models"
 	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gin-gonic/gin"
-	"mime/multipart"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 type NewProductRequest struct {

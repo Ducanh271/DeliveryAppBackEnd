@@ -46,6 +46,17 @@ func SetupRoutes(r *gin.Engine, db *sql.DB) {
 	protected.GET("/profile", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
 		handlers.ProfileHandler(c, db)
 	})
+	protected.POST("/create-order", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
+		handlers.CreateOrderHandler(c, db)
+	})
+	protected.GET("/orders", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
+		handlers.GetOrdersByUserIDHandler(c, db)
+	})
+	protected.GET("/orders/:id", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
+		handlers.GetOrderDetailHandler(c, db)
+	})
+
+	// chi cho admin
 	protected.POST("/admin/create-shipper", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
 		handlers.CreateShipper(c, db)
 	})

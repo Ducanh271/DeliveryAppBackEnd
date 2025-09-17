@@ -171,3 +171,29 @@ func GetImagesByProductID(db *sql.DB, productID int64) ([]ProductImage, error) {
 	}
 	return images, nil
 }
+
+// func get price of product by productID
+func GetPriceProduct(db *sql.DB, productID int64) float64 {
+	query := "select price from Products where id = ?"
+	var price float64
+	err := db.QueryRow(query, productID).Scan(&price)
+	if err == sql.ErrNoRows {
+		return 0
+	}
+	if err != nil {
+		return 0
+	}
+	return price
+}
+func GetImageIDByProductID(db *sql.DB, productID int64) (error, int64) {
+	query := "select image_id from ProductImages where product_id = ? and is_main = true"
+	var imageID int64
+	err := db.QueryRow(query, productID).Scan(&imageID)
+	if err == sql.ErrNoRows {
+		return nil, 0
+	}
+	if err != nil {
+		return err, 0
+	}
+	return nil, imageID
+}

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/smtp"
+	//	"strings"
 	"time"
 
 	"example.com/delivery-app/config"
@@ -43,7 +44,8 @@ func sendEmail(to, otp string) error {
 	smtpPort := config.Email.Port
 	msg := []byte("Subject: OTP Verifycation\n\nYour OTP code is: " + otp)
 	auth := smtp.PlainAuth("", from, password, smtpHost)
-	return smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
+	return err
 }
 
 // func create random string for request token
@@ -128,10 +130,19 @@ func CreateShipper(c *gin.Context, db *sql.DB) {
 		Address:  req.Address,
 		Role:     "shipper",
 	}
-
-	insertedID, err := models.CreateUser(db, &user)
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+	insertedID, err := models.CreateUserTx(tx, &user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create user"})
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Transaction commit failed"})
 		return
 	}
 
@@ -155,6 +166,12 @@ func SignupHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check email"})
 		return
 	}
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
 
 	// hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -172,7 +189,7 @@ func SignupHandler(c *gin.Context, db *sql.DB) {
 		Role:     "customer",
 	}
 
-	insertedID, err := models.CreateUser(db, &user)
+	insertedID, err := models.CreateUserTx(tx, &user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create user"})
 		return
@@ -185,16 +202,20 @@ func SignupHandler(c *gin.Context, db *sql.DB) {
 	}
 	expiry := time.Now().Add(10 * time.Minute)
 	// update otp to db
-	if err := models.UpdateOTP(db, user.Email, otp, expiry); err != nil {
+	if err := models.UpdateOTPTx(tx, user.Email, otp, expiry); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not set OTP"})
 		return
 	}
 	// send email
 	if err := sendEmail(user.Email, otp); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send OTP"})
 		return
 	}
 
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Transaction commit failed"})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully, please verify your email with OTP", "id": insertedID})
 }
 
@@ -258,6 +279,32 @@ func LoginHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 	if !user.IsVerified {
+		otp, err := generateOTP()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't generate otp"})
+			return
+		}
+		expiry := time.Now().Add(10 * time.Minute)
+		tx, err := db.Begin()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
+			return
+		}
+		defer tx.Rollback()
+		// update otp to db
+		if err := models.UpdateOTPTx(tx, user.Email, otp, expiry); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not set OTP"})
+			return
+		}
+		err = sendEmail(user.Email, otp)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't send email"})
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Transaction commit failed"})
+			return
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Please verify your email before login"})
 		return
 	}
@@ -329,14 +376,17 @@ func ForgetPasswordHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not set OTP"})
 		return
 	}
-	sendEmail(user.Email, otp)
+	if err := sendEmail(user.Email, otp); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send OTP"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "OTP sent to your email"})
 }
 
 func VerifyOTPForResetHandler(c *gin.Context, db *sql.DB) {
 	var req struct {
 		Email string `json:"email" binding:"required,email"`
-		OTP   string `json:"otp" binding "required"`
+		OTP   string `json:"otp" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})

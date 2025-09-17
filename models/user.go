@@ -33,10 +33,10 @@ func CheckEmailExists(db *sql.DB, email string) (bool, error) {
 	return true, nil
 
 }
-func CreateUser(db *sql.DB, user *User) (int64, error) {
+func CreateUserTx(tx *sql.Tx, user *User) (int64, error) {
 	query := "insert into users (name, email, password, phone, address, role, created_at) values (?,?, ?, ?, ?, ?,?)"
 	user.CreatedAt = time.Now()
-	result, err := db.Exec(query, user.Name, user.Email, user.Password, user.Phone, user.Address, user.Role, user.CreatedAt)
+	result, err := tx.Exec(query, user.Name, user.Email, user.Password, user.Phone, user.Address, user.Role, user.CreatedAt)
 	if err != nil {
 		return 0, err
 	}
@@ -73,9 +73,9 @@ func GetUserByID(db *sql.DB, userID int) (*User, error) {
 	user.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtstr)
 	return &user, nil
 }
-func UpdateOTP(db *sql.DB, userEmail string, otp string, expiry time.Time) error {
+func UpdateOTPTx(tx *sql.Tx, userEmail string, otp string, expiry time.Time) error {
 	query := `update users set otp_code = ?, otp_expires_at = ? where email = ?`
-	_, err := db.Exec(query, otp, expiry, userEmail)
+	_, err := tx.Exec(query, otp, expiry, userEmail)
 	return err
 }
 func VerifyUser(db *sql.DB, userEmail string) error {
