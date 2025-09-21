@@ -35,6 +35,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB) {
 		products.GET("/:id", func(c *gin.Context) {
 			handlers.GetProductByIDHandler(c, db)
 		})
+		products.GET("/:id/reviews", func(c *gin.Context) {
+			handlers.GetReviewsByProductIDHandler(c, db)
+		})
 	}
 	api.POST("/forgot-password", func(c *gin.Context) { handlers.ForgetPasswordHandler(c, db) })
 	api.POST("/verify-otp-for-reset", func(c *gin.Context) { handlers.VerifyOTPForResetHandler(c, db) })
@@ -55,6 +58,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB) {
 	protected.GET("/orders/:id", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
 		handlers.GetOrderDetailHandler(c, db)
 	})
+	protected.POST("/create-review", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
+		handlers.CreateNewReviewHandler(c, db)
+	})
 
 	// chi cho admin
 	protected.POST("/admin/create-shipper", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
@@ -62,5 +68,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB) {
 	})
 	protected.POST("/admin/create-product", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
 		handlers.CreateNewProductHandler(c, db)
+	})
+	// chi cho shipper
+	protected.POST("/shipper/update-order", middleware.RoleMiddleWare("shipper"), func(c *gin.Context) {
+		handlers.UpdateOrderShipper(c, db)
 	})
 }

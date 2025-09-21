@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -53,6 +54,12 @@ type OrderItemDetailResp struct {
 	Quantity     int64   `json:"quantity"`
 	Price        float64 `json:"price"`
 	Subtotal     float64 `json:"subtotal"`
+}
+
+type UpdateOrderRequest struct {
+	OrderID       int64  `json:"order_id"`
+	PaymentStatus string `json:"payment_status"`
+	OrderStatus   string `json:"order_status"`
 }
 
 func AddNewOrderToOrderTx(tx *sql.Tx, order *Order) (int64, error) {
@@ -189,4 +196,48 @@ func GetDetailOrder(db *sql.DB, orderID int64, userID int64) (*GetOrderDetailRes
 		OrderItems: items,
 	}
 	return resp, nil
+}
+
+// func for shipper
+
+func CheckShipperOrder(db *sql.DB, shipperID int64, orderID int64) (bool, error) {
+	query := "select shipper_id from orders where id = ?"
+	var shipperIDdb int64
+	err := db.QueryRow(query, orderID).Scan(&shipperIDdb)
+
+	if err == sql.ErrNoRows {
+		// không có order này trong DB
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	if shipperID != shipperIDdb {
+		return false, fmt.Errorf("shipper %d can't reach order %d", shipperID, orderID)
+	}
+	return true, nil
+}
+
+func UpdateStatusOrder(db *sql.DB, orderID int, paymentStatus *string, orderStatus *string) error {
+	query := "update orders set "
+	args := []interface{}{}
+
+	if paymentStatus != nil {
+		query += "payment_status = ?"
+		args = append(args, *paymentStatus)
+	}
+	if orderStatus != nil {
+		if len(args) > 0 {
+			query += ", "
+		}
+		query += "order_status = ?"
+		args = append(args, *orderStatus)
+	}
+
+	query += " where id = ?"
+	args = append(args, orderID)
+
+	_, err := db.Exec(query, args...)
+	return err
 }

@@ -137,3 +137,29 @@ func GetOrderDetailHandler(c *gin.Context, db *sql.DB) {
 	// trả về response JSON
 	c.JSON(http.StatusOK, orderDetail)
 }
+
+// func for shipper
+func UpdateOrderShipper(c *gin.Context, db *sql.DB) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var req models.UpdateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+	check, err := models.CheckShipperOrder(db, userID.(int64), req.OrderID)
+	if err != nil || check == false {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		return
+	}
+	err = models.UpdateStatusOrder(db, int(req.OrderID), &req.PaymentStatus, &req.OrderStatus)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't update this order"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "uodate successfully"})
+
+}
