@@ -177,6 +177,11 @@ func GetProductByIDHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load product images"})
 		return
 	}
+	avgRate, count, err := models.GetRatingByProductID(db, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get rate"})
+		return
+	}
 	productRes := models.ProductResponse{
 		ID:          product.ID,
 		Name:        product.Name,
@@ -186,6 +191,8 @@ func GetProductByIDHandler(c *gin.Context, db *sql.DB) {
 		QtySold:     product.QtySold,
 		CreatedAt:   product.CreatedAt,
 		Images:      images,
+		AvgRate:     avgRate,
+		ReviewCount: count,
 	}
 
 	c.JSON(http.StatusOK, gin.H{

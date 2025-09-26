@@ -28,6 +28,8 @@ type ProductResponse struct {
 	QtySold     int64          `json:"qty_sold"`
 	CreatedAt   time.Time      `json:"created_at"`
 	Images      []ProductImage `json:"images"`
+	AvgRate     float64        `json:"avg_rate"`
+	ReviewCount int            `json:"review_count"`
 }
 
 // create new products
@@ -64,20 +66,38 @@ func AddProductImageTx(tx *sql.Tx, productID int64, imageURL string, isMain bool
 	return imageID, nil
 }
 
+// get rating by product id
+func GetRatingByProductID(db *sql.DB, productID int64) (float64, int, error) {
+	var avgRate sql.NullFloat64
+	var count int
+	query := `select avg(rate), count(*) from Reviews where product_id = ?`
+	err := db.QueryRow(query, productID).Scan(&avgRate, &count)
+	if err != nil {
+		return 0, 0, err
+	}
+	if !avgRate.Valid {
+		return 0, count, nil
+	}
+	return avgRate.Float64, count, nil
+}
+
 // get products
 func GetProductsPaginated(db *sql.DB, page, limit int) ([]ProductResponse, int, error) {
 	offset := (page - 1) * limit
 
 	// Query lấy sản phẩm + ảnh
 	query := `
-        SELECT p.id, p.name, p.description, p.price, p.qty_initial, p.qty_sold, p.created_at,
-               i.id, i.url, pi.is_main
-        FROM Products p
-        LEFT JOIN ProductImages pi ON p.id = pi.product_id
-        LEFT JOIN Images i ON pi.image_id = i.id
-        ORDER BY p.created_at DESC
+    SELECT p.id, p.name, p.description, p.price, p.qty_initial, p.qty_sold, p.created_at,
+           i.id, i.url, pi.is_main
+    FROM (
+        SELECT * FROM Products
+        ORDER BY created_at DESC
         LIMIT ? OFFSET ?
-    `
+    ) p
+    LEFT JOIN ProductImages pi ON p.id = pi.product_id
+    LEFT JOIN Images i ON pi.image_id = i.id
+`
+
 	rows, err := db.Query(query, limit, offset)
 	if err != nil {
 		return nil, 0, err
@@ -96,6 +116,10 @@ func GetProductsPaginated(db *sql.DB, page, limit int) ([]ProductResponse, int, 
 			&p.QtyInitial, &p.QtySold, &p.CreatedAt,
 			&imgID, &imgURL, &isMain,
 		)
+		if err != nil {
+			return nil, 0, err
+		}
+		p.AvgRate, p.ReviewCount, err = GetRatingByProductID(db, p.ID)
 		if err != nil {
 			return nil, 0, err
 		}

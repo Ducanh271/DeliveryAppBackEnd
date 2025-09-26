@@ -208,7 +208,7 @@ func SignupHandler(c *gin.Context, db *sql.DB) {
 	}
 	// send email
 	if err := sendEmail(user.Email, otp); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send OTP"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
 
@@ -484,9 +484,11 @@ func ProfileHandler(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":    user.ID,
-		"email": user.Email,
-		"name":  user.Name,
+		"id":      user.ID,
+		"email":   user.Email,
+		"name":    user.Name,
+		"phone":   user.Phone,
+		"address": user.Address,
 	})
 }
 func LogoutHandler(c *gin.Context, db *sql.DB) {
