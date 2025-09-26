@@ -8,13 +8,13 @@ import (
 
 type RefreshToken struct {
 	ID        int       `json:"id"`
-	UserID    int       `json:"user_id"`
+	UserID    int64     `json:"user_id"`
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func SaveRefreshToken(db *sql.DB, userID int, token string, expiresAt time.Time) error {
+func SaveRefreshToken(db *sql.DB, userID int64, token string, expiresAt time.Time) error {
 	query := "insert into refresh_tokens (user_id, token, expires_at) values (?, ?, ?)"
 	_, err := db.Exec(query, userID, token, expiresAt)
 	return err
@@ -30,7 +30,7 @@ func GetRefreshTokenByToken(db *sql.DB, token string) (*RefreshToken, error) {
 	return &rt, nil
 }
 
-func GetRefreshTokensByUserID(db *sql.DB, userID int) ([]RefreshToken, error) {
+func GetRefreshTokensByUserID(db *sql.DB, userID int64) ([]RefreshToken, error) {
 	rows, err := db.Query(
 		"SELECT token, expires_at FROM refresh_tokens WHERE user_id = ?",
 		userID,
@@ -73,7 +73,7 @@ func UpdateRefreshToken(db *sql.DB, old_token string, new_token string) error {
 	_, err := db.Exec(query, new_token, old_token)
 	return err
 }
-func DeleteUserRefreshToken(db *sql.DB, userID int) error {
+func DeleteUserRefreshToken(db *sql.DB, userID int64) error {
 	query := `delete from refresh_tokens where user_id = ?`
 	_, err := db.Exec(query, userID)
 	return err

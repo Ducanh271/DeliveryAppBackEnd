@@ -477,7 +477,7 @@ func ProfileHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	user, err := models.GetUserByID(db, userID.(int))
+	user, err := models.GetUserByID(db, userID.(int64))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return

@@ -6,7 +6,7 @@ import (
 )
 
 type User struct {
-	ID                int        `json:"id"`
+	ID                int64      `json:"id"`
 	Name              string     `json:"name"`
 	Email             string     `json:"email"`
 	Password          string     `json:"-"`
@@ -60,7 +60,7 @@ func GetUserByEmail(db *sql.DB, email string) (*User, error) {
 	user.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtstr)
 	return &user, nil
 }
-func GetUserByID(db *sql.DB, userID int) (*User, error) {
+func GetUserByID(db *sql.DB, userID int64) (*User, error) {
 	query := "select id, name, email, password, phone, address, role, created_at from users where id = ?"
 	row := db.QueryRow(query, userID)
 	var user User
@@ -83,7 +83,7 @@ func VerifyUser(db *sql.DB, userEmail string) error {
 	_, err := db.Exec(updateQuery, userEmail)
 	return err
 }
-func ClearOTP(db *sql.DB, userID int) error {
+func ClearOTP(db *sql.DB, userID int64) error {
 	_, err := db.Exec(`UPDATE users SET otp_code = NULL, otp_expires_at = NULL WHERE id = ?`, userID)
 	return err
 }
@@ -101,7 +101,7 @@ func UpdatePasswordByEmail(db *sql.DB, email, hashed string) error {
 	return err
 }
 
-func ClearResetOTP(db *sql.DB, userID int) error {
+func ClearResetOTP(db *sql.DB, userID int64) error {
 	_, err := db.Exec(`UPDATE users SET reset_otp = NULL, reset_otp_expires_at = NULL WHERE id = ?`, userID)
 	return err
 }
