@@ -18,6 +18,7 @@ type Order struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
+
 type OrderItem struct {
 	ID        int64   `json:"id"`
 	OrderID   int64   `json:"order_id"`
@@ -45,6 +46,13 @@ type OrdersOfUserResponse struct {
 type GetOrderDetailResponse struct {
 	Order      Order                 `json:"order"`
 	OrderItems []OrderItemDetailResp `json:"items"`
+}
+type OrderForShipper struct {
+	OrderID int64
+	Address string
+}
+type GetOrdersForShipperRes struct {
+	Orders []Order
 }
 
 type OrderItemDetailResp struct {
@@ -74,6 +82,130 @@ func AddNewOrderItemsTx(tx *sql.Tx, orderItem *OrderItem) error {
 	query := "insert into order_items (order_id, product_id, quantity, price) values (?, ?, ?, ?)"
 	_, err := tx.Exec(query, orderItem.OrderID, orderItem.ProductID, orderItem.Quantity, orderItem.Price)
 	return err
+}
+
+// func GetAllOrder by admin
+func GetAllOrders(db *sql.DB, page, limit int) ([]OrderSummaryResponse, int, error) {
+	offset := (page - 1) * limit
+	var total int
+	err := db.QueryRow("select count(*) from orders").Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+	query := `SELECT o.id, o.user_id, o.payment_status, o.order_status,
+		       o.latitude, o.longitude, o.total_amount, 
+		       o.thumbnail_id, o.created_at, o.updated_at,
+		       i.url AS thumbnail
+		FROM orders o
+		LEFT JOIN Images i ON o.thumbnail_id = i.id
+		ORDER BY o.id DESC limit ? offset ?`
+
+	rows, err := db.Query(query, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var orders []OrderSummaryResponse
+	for rows.Next() {
+		var order Order
+		var thumbnail sql.NullString
+
+		err := rows.Scan(
+			&order.ID,
+			&order.UserID,
+			&order.PaymentStatus,
+			&order.OrderStatus,
+			&order.Latitude,
+			&order.Longitude,
+			&order.TotalAmount,
+			&order.ThumbnailID,
+			&order.CreatedAt,
+			&order.UpdatedAt,
+			&thumbnail,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		resp := OrderSummaryResponse{
+			Order:     order,
+			Thumbnail: "",
+		}
+		if thumbnail.Valid {
+			resp.Thumbnail = thumbnail.String
+		}
+
+		orders = append(orders, resp)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return orders, total, nil
+}
+
+// get all order by shipper
+func GetOrdersByShipper(db *sql.DB, page, limit int) ([]OrderSummaryResponse, int, error) {
+	offset := (page - 1) * limit
+	var total int
+	err := db.QueryRow("select count(*) from orders").Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+	query := `SELECT o.id, o.payment_status, o.order_status, 
+		       o.latitude, o.longitude, o.total_amount, 
+		       o.thumbnail_id, o.created_at, o.updated_at,
+		       i.url AS thumbnail
+		FROM orders o
+		LEFT JOIN Images i ON o.thumbnail_id = i.id
+		where o.order_status = "processing"
+		ORDER BY o.id DESC limit ? offset ?`
+
+	rows, err := db.Query(query, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var orders []OrderSummaryResponse
+	for rows.Next() {
+		var order Order
+		var thumbnail sql.NullString
+
+		err := rows.Scan(
+			&order.ID,
+			&order.PaymentStatus,
+			&order.OrderStatus,
+			&order.Latitude,
+			&order.Longitude,
+			&order.TotalAmount,
+			&order.ThumbnailID,
+			&order.CreatedAt,
+			&order.UpdatedAt,
+			&thumbnail,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		resp := OrderSummaryResponse{
+			Order:     order,
+			Thumbnail: "",
+		}
+		if thumbnail.Valid {
+			resp.Thumbnail = thumbnail.String
+		}
+
+		orders = append(orders, resp)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return orders, total, nil
 }
 func GetOrdersByUserID(db *sql.DB, userID int64) ([]OrderSummaryResponse, error) {
 	query := `
@@ -132,10 +264,20 @@ func GetOrdersByUserID(db *sql.DB, userID int64) ([]OrderSummaryResponse, error)
 
 	return orders, nil
 }
-
-func GetDetailOrder(db *sql.DB, orderID int64, userID int64) (*GetOrderDetailResponse, error) {
+func GetDetailOrder(db *sql.DB, orderID int64, userID int64, role string) (*GetOrderDetailResponse, error) {
 	var order Order
-	orderQuery := `select id, user_id, payment_status, order_status, latitude, longitude, total_amount, thumbnail_id, created_at, updated_at from orders where id = ? and user_id = ?`
+	if role == "customer" || role == "shipper" {
+		var exists bool
+		err := db.QueryRow(
+			"select exists (select 1 from orders where (id = ? and (user_id = ? or shipper_id = ?)))", orderID, userID, userID,
+		).Scan(&exists)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	orderQuery := `select id, user_id, payment_status, order_status, latitude, longitude, total_amount, thumbnail_id, created_at, updated_at from orders where id = ? and user_id`
+
 	err := db.QueryRow(orderQuery, orderID).Scan(
 		&order.ID,
 		&order.UserID,
@@ -219,7 +361,7 @@ func CheckShipperOrder(db *sql.DB, shipperID int64, orderID int64) (bool, error)
 	return true, nil
 }
 
-func UpdateStatusOrder(db *sql.DB, orderID int, paymentStatus *string, orderStatus *string) error {
+func UpdateStatusOrder(db *sql.DB, orderID int64, paymentStatus *string, orderStatus *string) error {
 	query := "update orders set "
 	args := []interface{}{}
 
@@ -240,4 +382,18 @@ func UpdateStatusOrder(db *sql.DB, orderID int, paymentStatus *string, orderStat
 
 	_, err := db.Exec(query, args...)
 	return err
+}
+
+func UpdateShipperForOrder(db *sql.DB, orderID int64, shipperID int64) error {
+	query := "update orders set shipper_id = ?, order_status = 'shipping' where id = ? and order_status= 'processing' "
+	_, err := db.Exec(query, shipperID, orderID)
+	return err
+}
+
+// func check current numbers of orders of shipper
+func CheckNumberOfOrdersShipper(db *sql.DB, userID int64) (int, error) {
+	var num int
+	query := "select count(*) from orders where shipper_id = ? and order_status = 'shipping'"
+	err := db.QueryRow(query, userID).Scan(&num)
+	return num, err
 }

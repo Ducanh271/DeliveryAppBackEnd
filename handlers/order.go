@@ -9,6 +9,17 @@ import (
 	"time"
 )
 
+const MaxOrders = 10
+
+type OrdersShipperResponse struct {
+	OrderID   int64   `json:"order_id"`
+	Longitude float64 `json:"longitude"`
+	Latitude  float64 `json:"latitude"`
+}
+type ReceiveOrderRequest struct {
+	OrderID int64
+}
+
 func CreateOrderWithItems(db *sql.DB, order *models.Order, items []models.OrderItem) error {
 	// bắt đầu transaction
 	tx, err := db.Begin()
@@ -114,6 +125,10 @@ func GetOrderDetailHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
+	role, exists := c.Get("role")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	}
 
 	// lấy orderID từ param
 	orderIDStr := c.Param("id")
@@ -124,7 +139,7 @@ func GetOrderDetailHandler(c *gin.Context, db *sql.DB) {
 	}
 
 	// gọi models để lấy dữ liệu
-	orderDetail, err := models.GetDetailOrder(db, orderID, userID.(int64))
+	orderDetail, err := models.GetDetailOrder(db, orderID, userID.(int64), role.(string))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
@@ -139,6 +154,34 @@ func GetOrderDetailHandler(c *gin.Context, db *sql.DB) {
 }
 
 // func for shipper
+func ReceiveOrderByShipperHandler(c *gin.Context, db *sql.DB) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var orderID int64
+	if err := c.ShouldBindJSON(&orderID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid orderID"})
+		return
+	}
+	num, err := models.CheckNumberOfOrdersShipper(db, userID.(int64))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed check number of orders"})
+		return
+	}
+	if num >= MaxOrders {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "You is currently full of orders"})
+		return
+	}
+	err = models.UpdateShipperForOrder(db, orderID, userID.(int64))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't update this order"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Receive order succesfully"})
+
+}
 func UpdateOrderShipper(c *gin.Context, db *sql.DB) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -155,11 +198,81 @@ func UpdateOrderShipper(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
-	err = models.UpdateStatusOrder(db, int(req.OrderID), &req.PaymentStatus, &req.OrderStatus)
+	err = models.UpdateStatusOrder(db, int64(req.OrderID), &req.PaymentStatus, &req.OrderStatus)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't update this order"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "uodate successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "update successfully"})
 
+}
+
+// func get order by shipper
+func GetOrdersByAdminHandler(c *gin.Context, db *sql.DB) {
+	// Lấy query param
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+
+	orders, total, err := models.GetAllOrders(db, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	totalPages := (total + limit - 1) / limit
+
+	c.JSON(http.StatusOK, gin.H{
+		"orders": orders,
+		"pagination": gin.H{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
+}
+
+// get order by shipper
+func GetOrdersByShipperHandler(c *gin.Context, db *sql.DB) {
+	// Lấy query param
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+
+	orders, total, err := models.GetOrdersByShipper(db, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	totalPages := (total + limit - 1) / limit
+
+	c.JSON(http.StatusOK, gin.H{
+		"orders": orders,
+		"pagination": gin.H{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
 }
