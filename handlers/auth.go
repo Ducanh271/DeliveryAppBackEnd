@@ -65,7 +65,8 @@ func createTokens(user models.User) (error, string, string) {
 		"role":   user.Role,
 		"exp":    time.Now().Add(150 * time.Minute).Unix(),
 	})
-	accessTokenStr, err := accessToken.SignedString([]byte(middleware.JwtKey))
+	accessTokenStr, err := accessToken.SignedString(middleware.JwtKey)
+	fmt.Println(middleware.JwtKey)
 	if err != nil {
 		return errors.New("Can't create access token"), "", ""
 	}

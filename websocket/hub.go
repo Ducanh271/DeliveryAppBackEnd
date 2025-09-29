@@ -65,7 +65,13 @@ func (h *Hub) SendToUser(userID int64, msg *Message) error {
 	if err != nil {
 		return err
 	}
-	client.Send <- data
+	select {
+	case client.Send <- data:
+	default:
+		close(client.Send)
+		delete(h.Clients, userID)
+		return nil
+	}
 	return nil
 }
 
@@ -73,13 +79,32 @@ func (h *Hub) SendToUser(userID int64, msg *Message) error {
 func (h *Hub) HandleMessage(sender *Client, msg *Message) {
 	switch msg.Type {
 	case "chat_message":
-		// giả sử Data có: { "to_user": 5, "content": "hi" }
-		dataMap := msg.Data.(map[string]interface{})
+		// Giả sử Data có: { "to_user": 5, "content": "hi" }
+		dataMap := msg.Data
 		toID := int64(dataMap["to_user"].(float64))
-		h.SendToUser(toID, msg)
+		if toID == sender.ID {
+			// Tránh gửi lại cho chính mình
+			return
+		}
+		// Gửi tin nhắn đến người nhận
+		msg.FromUserID = sender.ID // Thêm thông tin người gửi
+		if err := h.SendToUser(toID, msg); err != nil {
+			// Xử lý lỗi nếu cần (ví dụ: người nhận không online)
+		}
 	default:
-		// broadcast cho tất cả
+		// Broadcast cho tất cả, trừ người gửi
 		raw, _ := json.Marshal(msg)
-		h.Broadcast <- raw
+		h.mu.RLock()
+		for _, client := range h.Clients {
+			if client.ID != sender.ID {
+				select {
+				case client.Send <- raw:
+				default:
+					close(client.Send)
+					delete(h.Clients, client.ID)
+				}
+			}
+		}
+		h.mu.RUnlock()
 	}
 }
