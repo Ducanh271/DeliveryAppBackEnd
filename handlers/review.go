@@ -37,10 +37,10 @@ type ReviewImageRes struct {
 
 // func
 // upload image to cloudinary
-func uploadToCloudinaryForReview(file multipart.File, fileHeader *multipart.FileHeader) (string, error) {
+func uploadToCloudinaryForReview(file multipart.File, fileHeader *multipart.FileHeader) (string, string, error) {
 	cld, err := cloudinary.NewFromURL(config.CloudinaryURL)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	ctx := context.Background()
 	uploadResult, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
@@ -48,9 +48,9 @@ func uploadToCloudinaryForReview(file multipart.File, fileHeader *multipart.File
 		Folder:   "review",
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return uploadResult.SecureURL, nil
+	return uploadResult.SecureURL, uploadResult.PublicID, nil
 }
 func CreateNewReviewHandler(c *gin.Context, db *sql.DB) {
 	userID, exists := c.Get("userID")
@@ -120,7 +120,7 @@ func CreateNewReviewHandler(c *gin.Context, db *sql.DB) {
 			return
 		}
 
-		url, err := uploadToCloudinary(openFile, fileHeader)
+		url, publicID, err := uploadToCloudinary(openFile, fileHeader)
 		openFile.Close()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't upload file image"})
@@ -128,7 +128,7 @@ func CreateNewReviewHandler(c *gin.Context, db *sql.DB) {
 		}
 		urls = append(urls, url)
 
-		_, err = models.CreateReviewImagesTx(tx, review.ID, url)
+		_, err = models.CreateReviewImagesTx(tx, review.ID, url, publicID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't save url image"})
 			return

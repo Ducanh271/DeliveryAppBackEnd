@@ -63,7 +63,7 @@ func createTokens(user models.User) (error, string, string) {
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userID": user.ID,
 		"role":   user.Role,
-		"exp":    time.Now().Add(120 * time.Minute).Unix(),
+		"exp":    time.Now().Add(150 * time.Minute).Unix(),
 	})
 	accessTokenStr, err := accessToken.SignedString([]byte(middleware.JwtKey))
 	if err != nil {

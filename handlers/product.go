@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -24,10 +25,10 @@ type NewProductRequest struct {
 }
 
 // upload image to cloudinary
-func uploadToCloudinary(file multipart.File, fileHeader *multipart.FileHeader) (string, error) {
+func uploadToCloudinary(file multipart.File, fileHeader *multipart.FileHeader) (string, string, error) {
 	cld, err := cloudinary.NewFromURL(config.CloudinaryURL)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	ctx := context.Background()
 	uploadResult, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
@@ -35,9 +36,9 @@ func uploadToCloudinary(file multipart.File, fileHeader *multipart.FileHeader) (
 		Folder:   "product",
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return uploadResult.SecureURL, nil
+	return uploadResult.SecureURL, uploadResult.PublicID, nil
 }
 func CreateNewProductHandler(c *gin.Context, db *sql.DB) {
 	var req NewProductRequest
@@ -91,7 +92,7 @@ func CreateNewProductHandler(c *gin.Context, db *sql.DB) {
 			return
 		}
 
-		url, err := uploadToCloudinary(openFile, fileHeader)
+		url, publicID, err := uploadToCloudinary(openFile, fileHeader)
 		openFile.Close()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't upload file image"})
@@ -99,9 +100,9 @@ func CreateNewProductHandler(c *gin.Context, db *sql.DB) {
 		}
 		urls = append(urls, url)
 
-		_, err = models.AddProductImageTx(tx, product.ID, url, isFirst)
+		_, err = models.AddProductImageTx(tx, product.ID, url, publicID, isFirst)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't save url image"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		isFirst = false
@@ -197,5 +198,54 @@ func GetProductByIDHandler(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"product": productRes,
+	})
+}
+func DeleteProductHandler(c *gin.Context, db *sql.DB, cld *cloudinary.Cloudinary) {
+	//  Lấy productID từ URL
+	productIDStr := c.Param("id")
+	productID, err := strconv.ParseInt(productIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid product ID"})
+		return
+	}
+
+	//  Bắt đầu transaction
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to begin transaction"})
+		return
+	}
+
+	//  Xóa ảnh trên Cloudinary
+	err = models.DeleteProductImages(cld, tx, productID)
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete images", "details": err.Error()})
+		return
+	}
+
+	//  Xóa bản ghi trong bảng Products (các bảng con có cascade delete)
+	_, err = models.DeleteProductByID(tx, productID)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete product", "details": err.Error()})
+		return
+	}
+
+	//  Commit transaction
+	err = tx.Commit()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to commit transaction"})
+		return
+	}
+
+	//  Trả về response thành công
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "product deleted successfully",
+		"product_id": productID,
 	})
 }

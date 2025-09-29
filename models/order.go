@@ -9,6 +9,7 @@ import (
 type Order struct {
 	ID            int64     `json:"id"`
 	UserID        int64     `json:"user_id"`
+	ShipperID     int64     `json:"shipper_id"`
 	PaymentStatus string    `json:"payment_status"` // unpaid || paid || refund
 	OrderStatus   string    `json:"order_status"`   // pending || processing ||shipped || delivered || canceled
 	Latitude      float64   `json:"latitude"`
@@ -63,7 +64,9 @@ type OrderItemDetailResp struct {
 	Price        float64 `json:"price"`
 	Subtotal     float64 `json:"subtotal"`
 }
-
+type ReceiveOrderRequest struct {
+	OrderID int64 `json:"order_id"`
+}
 type UpdateOrderRequest struct {
 	OrderID       int64  `json:"order_id"`
 	PaymentStatus string `json:"payment_status"`
@@ -207,6 +210,42 @@ func GetOrdersByShipper(db *sql.DB, page, limit int) ([]OrderSummaryResponse, in
 
 	return orders, total, nil
 }
+func GetOrderByID(db *sql.DB, orderID int64) (*Order, error) {
+	query := `
+		SELECT id, user_id , payment_status, order_status,
+		       latitude, longitude, total_amount, thumbnail_id, created_at, updated_at
+		FROM orders
+		WHERE id = ?
+	`
+
+	row := db.QueryRow(query, orderID)
+
+	var o Order
+	err := row.Scan(
+		&o.ID,
+		&o.UserID,
+		&o.PaymentStatus,
+		&o.OrderStatus,
+		&o.Latitude,
+		&o.Longitude,
+		&o.TotalAmount,
+		&o.ThumbnailID,
+		&o.CreatedAt,
+		&o.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Không tìm thấy order
+			return nil, nil
+		}
+		// Lỗi khác
+		return nil, err
+	}
+
+	return &o, nil
+}
+
 func GetOrdersByUserID(db *sql.DB, userID int64) ([]OrderSummaryResponse, error) {
 	query := `
 		SELECT o.id, o.user_id, o.payment_status, o.order_status,

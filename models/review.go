@@ -57,9 +57,9 @@ func CanUserReview(db *sql.DB, userID, productID int) (bool, error) {
 }
 
 // func create reviews
-func CreateReviewImagesTx(tx *sql.Tx, reviewID int64, imageURL string) (int64, error) {
+func CreateReviewImagesTx(tx *sql.Tx, reviewID int64, imageURL string, publicID string) (int64, error) {
 	// 1. Insert ảnh vào bảng Images
-	queryImg := `INSERT INTO Images (url) VALUES (?)`
+	queryImg := `INSERT INTO Images (url, public_id) VALUES (?, ?)`
 	result, err := tx.Exec(queryImg, imageURL)
 	if err != nil {
 		return 0, err

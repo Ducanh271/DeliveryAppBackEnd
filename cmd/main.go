@@ -4,6 +4,7 @@ import (
 	"example.com/delivery-app/config"
 	"example.com/delivery-app/database"
 	"example.com/delivery-app/routes"
+	"github.com/cloudinary/cloudinary-go/v2"
 	"log"
 	"net/http"
 
@@ -21,7 +22,11 @@ func main() {
 
 	// Tạo Gin engine
 	r := gin.Default()
-
+	// create cloudinary
+	cld, err := cloudinary.NewFromURL(config.CloudinaryURL)
+	if err != nil {
+		log.Fatal("Failed to connect to Cloudinary")
+	}
 	// Middleware CORS
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
@@ -38,7 +43,7 @@ func main() {
 	})
 
 	// Setup routes (truyền DB vào nếu cần)
-	routes.SetupRoutes(r, database.DB)
+	routes.SetupRoutes(r, database.DB, cld)
 
 	// Run server
 	r.Run(":8080")

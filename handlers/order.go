@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"example.com/delivery-app/models"
+	"example.com/delivery-app/websocket"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
@@ -154,34 +155,71 @@ func GetOrderDetailHandler(c *gin.Context, db *sql.DB) {
 }
 
 // func for shipper
-func ReceiveOrderByShipperHandler(c *gin.Context, db *sql.DB) {
-	userID, exists := c.Get("userID")
+func ReceiveOrderByShipperHandler(c *gin.Context, db *sql.DB, hub *websocket.Hub) {
+	// Lấy userID từ context
+	userIDVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	var orderID int64
-	if err := c.ShouldBindJSON(&orderID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid orderID"})
+
+	userID, ok := userIDVal.(int64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user ID"})
 		return
 	}
-	num, err := models.CheckNumberOfOrdersShipper(db, userID.(int64))
+
+	// Bind request JSON
+	var req models.ReceiveOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	orderID := req.OrderID
+
+	// Lấy order theo ID
+	order, err := models.GetOrderByID(db, orderID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed check number of orders"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get order"})
+		return
+	}
+	if order == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		return
+	}
+
+	// Kiểm tra số lượng đơn shipper đang nhận
+	num, err := models.CheckNumberOfOrdersShipper(db, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check number of orders"})
 		return
 	}
 	if num >= MaxOrders {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "You is currently full of orders"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "you have reached the maximum number of orders"})
 		return
 	}
-	err = models.UpdateShipperForOrder(db, orderID, userID.(int64))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't update this order"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "Receive order succesfully"})
 
+	// Cập nhật shipper cho order
+	if err := models.UpdateShipperForOrder(db, orderID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update order"})
+		return
+	}
+
+	// Gửi thông báo qua WebSocket
+	msg := websocket.Message{
+		Type: "shipped_order",
+		Data: map[string]interface{}{
+			"order_id":     orderID,
+			"order_status": "shipped",
+			"shipper":      userID,
+		},
+	}
+	hub.SendToUser(order.UserID, &msg)
+
+	// Trả về response thành công
+	c.JSON(http.StatusOK, gin.H{"message": "order received successfully"})
 }
+
 func UpdateOrderShipper(c *gin.Context, db *sql.DB) {
 	userID, exists := c.Get("userID")
 	if !exists {

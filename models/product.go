@@ -1,7 +1,11 @@
 package models
 
 import (
+	"context"
 	"database/sql"
+	"github.com/cloudinary/cloudinary-go/v2"
+	"github.com/cloudinary/cloudinary-go/v2/api"
+	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"time"
 )
 
@@ -47,10 +51,10 @@ func CreateProductTx(tx *sql.Tx, p *Product) (int64, error) {
 }
 
 // add image
-func AddProductImageTx(tx *sql.Tx, productID int64, imageURL string, isMain bool) (int64, error) {
+func AddProductImageTx(tx *sql.Tx, productID int64, imageURL string, publicID string, isMain bool) (int64, error) {
 	// 1. Insert ảnh vào bảng Images
-	queryImg := `INSERT INTO Images (url) VALUES (?)`
-	result, err := tx.Exec(queryImg, imageURL)
+	queryImg := `INSERT INTO Images (url, public_id) VALUES (?, ?)`
+	result, err := tx.Exec(queryImg, imageURL, productID)
 	if err != nil {
 		return 0, err
 	}
@@ -91,7 +95,7 @@ func GetProductsPaginated(db *sql.DB, page, limit int) ([]ProductResponse, int, 
            i.id, i.url, pi.is_main
     FROM (
         SELECT * FROM Products
-        ORDER BY created_at DESC
+        ORDER BY id DESC
         LIMIT ? OFFSET ?
     ) p
     LEFT JOIN ProductImages pi ON p.id = pi.product_id
@@ -220,4 +224,56 @@ func GetImageIDByProductID(db *sql.DB, productID int64) (error, int64) {
 		return err, 0
 	}
 	return nil, imageID
+}
+
+func DeleteProductByID(tx *sql.Tx, productID int64) (int64, error) {
+	query := "DELETE FROM Products WHERE id = ?"
+	result, err := tx.Exec(query, productID)
+	if err != nil {
+		return 0, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if rowsAffected == 0 {
+		return 0, sql.ErrNoRows // Không tìm thấy sản phẩm để xóa
+	}
+
+	return rowsAffected, nil
+}
+
+func DeleteProductImages(cld *cloudinary.Cloudinary, tx *sql.Tx, productID int64) error {
+	rows, err := tx.Query(`
+        SELECT i.public_id 
+        FROM Images i 
+        JOIN ProductImages pi ON i.id = pi.image_id 
+        WHERE pi.product_id = ?`, productID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var publicID string
+		if err := rows.Scan(&publicID); err != nil {
+			return err
+		}
+
+		_, err := cld.Upload.Destroy(context.Background(), uploader.DestroyParams{
+			PublicID:   publicID,
+			Invalidate: api.Bool(true),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// Kiểm tra lỗi duyệt rows
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
