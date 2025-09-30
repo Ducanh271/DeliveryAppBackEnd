@@ -73,6 +73,18 @@ type UpdateOrderRequest struct {
 	OrderStatus   string `json:"order_status"`
 }
 
+func CheckOrderUser(db *sql.DB, userID, orderID int64) (bool, error) {
+	query := "select 1 from orders where user_id = ? and id = ? limit 1"
+	var result int
+	err := db.QueryRow(query, userID, orderID).Scan(&result)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
 func AddNewOrderToOrderTx(tx *sql.Tx, order *Order) (int64, error) {
 	query := "insert into orders (user_id, payment_status, order_status, latitude, longitude, total_amount, thumbnail_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?,?, ?)"
 	result, err := tx.Exec(query, order.UserID, order.PaymentStatus, order.OrderStatus, order.Latitude, order.Longitude, order.TotalAmount, order.ThumbnailID, order.CreatedAt, order.UpdatedAt)

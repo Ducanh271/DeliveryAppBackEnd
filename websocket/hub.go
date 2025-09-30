@@ -1,11 +1,18 @@
 package websocket
 
 import (
+	"database/sql"
 	"encoding/json"
+	// "fmt"
+	"log"
 	"sync"
+	"time"
+
+	"example.com/delivery-app/models"
 )
 
 type Hub struct {
+	DB         *sql.DB
 	Clients    map[int64]*Client
 	Register   chan *Client
 	Unregister chan *Client
@@ -13,8 +20,9 @@ type Hub struct {
 	mu         sync.RWMutex
 }
 
-func NewHub() *Hub {
+func NewHub(db *sql.DB) *Hub {
 	return &Hub{
+		DB:         db,
 		Clients:    make(map[int64]*Client),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
@@ -79,17 +87,22 @@ func (h *Hub) SendToUser(userID int64, msg *Message) error {
 func (h *Hub) HandleMessage(sender *Client, msg *Message) {
 	switch msg.Type {
 	case "chat_message":
-		// Giả sử Data có: { "to_user": 5, "content": "hi" }
-		dataMap := msg.Data
-		toID := int64(dataMap["to_user"].(float64))
-		if toID == sender.ID {
-			// Tránh gửi lại cho chính mình
+		if msg.ToUserID == 0 || msg.ToUserID == sender.ID {
 			return
 		}
-		// Gửi tin nhắn đến người nhận
-		msg.FromUserID = sender.ID // Thêm thông tin người gửi
-		if err := h.SendToUser(toID, msg); err != nil {
-			// Xử lý lỗi nếu cần (ví dụ: người nhận không online)
+		msg.CreatedAt = time.Now()
+		messageModel := &models.Message{
+			OrderID:    msg.OrderID,
+			FromUserID: sender.ID,
+			ToUserID:   msg.ToUserID,
+			Content:    msg.Content,
+			CreatedAt:  msg.CreatedAt,
+		}
+		if err := models.SaveMessage(h.DB, messageModel); err != nil {
+			log.Printf("Failed to save message: %v", err)
+		}
+		if err := h.SendToUser(msg.ToUserID, msg); err != nil {
+			log.Printf("Receiver is not online: %v", err)
 		}
 	default:
 		// Broadcast cho tất cả, trừ người gửi

@@ -206,15 +206,15 @@ func ReceiveOrderByShipperHandler(c *gin.Context, db *sql.DB, hub *websocket.Hub
 	}
 
 	// Gửi thông báo qua WebSocket
-	msg := websocket.Message{
-		Type: "shipped_order",
-		Data: map[string]interface{}{
-			"order_id":     orderID,
-			"order_status": "shipped",
-			"shipper":      userID,
-		},
-	}
-	hub.SendToUser(order.UserID, &msg)
+	// msg := websocket.Message{
+	// 	Type: "shipped_order",
+	// 	Data: map[string]interface{}{
+	// 		"order_id":     orderID,
+	// 		"order_status": "shipped",
+	// 		"shipper":      userID,
+	// 	},
+	// }
+	// hub.SendToUser(order.UserID, &msg)
 
 	// Trả về response thành công
 	c.JSON(http.StatusOK, gin.H{"message": "order received successfully"})

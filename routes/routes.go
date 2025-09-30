@@ -9,9 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var Hub = websocket.NewHub()
-
 func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
+	var Hub = websocket.NewHub(db)
 	go Hub.Run()
 	api := r.Group("/api/v1")
 	api.GET("/ws", func(c *gin.Context) {
@@ -45,6 +44,7 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 			handlers.GetReviewsByProductIDHandler(c, db)
 		})
 	}
+
 	api.POST("/forgot-password", func(c *gin.Context) { handlers.ForgetPasswordHandler(c, db) })
 	api.POST("/verify-otp-for-reset", func(c *gin.Context) { handlers.VerifyOTPForResetHandler(c, db) })
 	api.POST("/reset-password", func(c *gin.Context) { handlers.ResetPasswordHandler(c, db) })
@@ -66,6 +66,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	})
 	protected.POST("/create-review", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
 		handlers.CreateNewReviewHandler(c, db)
+	})
+	protected.GET("/messages/:id", middleware.RoleMiddleWare("customer", "admin", "shipper"), func(c *gin.Context) {
+		handlers.GetMessageHandler(c, db)
 	})
 
 	// chi cho admin
