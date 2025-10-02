@@ -19,6 +19,21 @@ type Order struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
+type OrderResponse struct {
+	ID            int64     `json:"id"`
+	UserID        int64     `json:"user_id"`
+	UserName      string    `json:"user_name"`
+	Phone         string    `json:"phone"`
+	ShipperID     int64     `json:"shipper_id"`
+	PaymentStatus string    `json:"payment_status"` // unpaid || paid || refund
+	OrderStatus   string    `json:"order_status"`   // pending || processing ||shipped || delivered || canceled
+	Latitude      float64   `json:"latitude"`
+	Longitude     float64   `json:"longitude"`
+	TotalAmount   float64   `json:"total_amount"`
+	ThumbnailID   int       `json:"thumbnail_id"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
 
 type OrderItem struct {
 	ID        int64   `json:"id"`
@@ -45,7 +60,7 @@ type OrdersOfUserResponse struct {
 	Orders []OrderSummaryResponse `json:"orders"`
 }
 type GetOrderDetailResponse struct {
-	Order      Order                 `json:"order"`
+	Order      OrderResponse         `json:"order"`
 	OrderItems []OrderItemDetailResp `json:"items"`
 }
 type OrderForShipper struct {
@@ -316,7 +331,7 @@ func GetOrdersByUserID(db *sql.DB, userID int64) ([]OrderSummaryResponse, error)
 	return orders, nil
 }
 func GetDetailOrder(db *sql.DB, orderID int64, userID int64, role string) (*GetOrderDetailResponse, error) {
-	var order Order
+	var order OrderResponse
 	if role == "customer" || role == "shipper" {
 		var exists bool
 		err := db.QueryRow(
@@ -327,11 +342,13 @@ func GetDetailOrder(db *sql.DB, orderID int64, userID int64, role string) (*GetO
 		}
 	}
 
-	orderQuery := `select id, user_id, payment_status, order_status, latitude, longitude, total_amount, thumbnail_id, created_at, updated_at from orders where id = ? and user_id`
+	orderQuery := `select o.id, o.user_id, u.name, u.phone, payment_status, order_status, latitude, longitude, total_amount, thumbnail_id, o.created_at, o.updated_at from orders o join users u on o.user_id = u.id  where o.id = ? `
 
 	err := db.QueryRow(orderQuery, orderID).Scan(
 		&order.ID,
 		&order.UserID,
+		&order.UserName,
+		&order.Phone,
 		&order.PaymentStatus,
 		&order.OrderStatus,
 		&order.Latitude,

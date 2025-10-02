@@ -43,6 +43,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 		products.GET("/:id/reviews", func(c *gin.Context) {
 			handlers.GetReviewsByProductIDHandler(c, db)
 		})
+		products.GET("/search", func(c *gin.Context) {
+			handlers.SearchProductHandler(c, db)
+		})
 	}
 
 	api.POST("/forgot-password", func(c *gin.Context) { handlers.ForgetPasswordHandler(c, db) })

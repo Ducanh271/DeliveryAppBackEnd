@@ -249,3 +249,29 @@ func DeleteProductHandler(c *gin.Context, db *sql.DB, cld *cloudinary.Cloudinary
 		"product_id": productID,
 	})
 }
+func SearchProductHandler(c *gin.Context, db *sql.DB) {
+	q := c.Query("q")
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing search query"})
+		return
+	}
+
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+
+	products, total, err := models.SearchProductsPaginated(db, q, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"page":     page,
+		"limit":    limit,
+		"total":    total,
+		"products": products,
+	})
+}

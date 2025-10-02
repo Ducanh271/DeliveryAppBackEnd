@@ -277,3 +277,81 @@ func DeleteProductImages(cld *cloudinary.Cloudinary, tx *sql.Tx, productID int64
 
 	return nil
 }
+func SearchProductsPaginated(db *sql.DB, keyword string, page, limit int) ([]ProductResponse, int, error) {
+	offset := (page - 1) * limit
+	searchTerm := "%" + keyword + "%"
+
+	query := `
+    SELECT p.id, p.name, p.description, p.price, p.qty_initial, p.qty_sold, p.created_at,
+           i.id, i.url, pi.is_main
+    FROM (
+        SELECT * FROM Products
+        WHERE name LIKE ? OR description LIKE ?
+        ORDER BY id DESC
+        LIMIT ? OFFSET ?
+    ) p
+    LEFT JOIN ProductImages pi ON p.id = pi.product_id
+    LEFT JOIN Images i ON pi.image_id = i.id
+	`
+
+	rows, err := db.Query(query, searchTerm, searchTerm, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	productsMap := make(map[int64]*ProductResponse)
+	for rows.Next() {
+		var (
+			p      ProductResponse
+			imgID  sql.NullInt64
+			imgURL sql.NullString
+			isMain sql.NullBool
+		)
+
+		err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price,
+			&p.QtyInitial, &p.QtySold, &p.CreatedAt,
+			&imgID, &imgURL, &isMain,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		//  Giữ nguyên cách tính rating
+		p.AvgRate, p.ReviewCount, err = GetRatingByProductID(db, p.ID)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		existing, ok := productsMap[p.ID]
+		if !ok {
+			existing = &p
+			existing.Images = []ProductImage{}
+			productsMap[p.ID] = existing
+		}
+
+		if imgID.Valid {
+			existing.Images = append(existing.Images, ProductImage{
+				ID:     imgID.Int64,
+				URL:    imgURL.String,
+				IsMain: isMain.Bool,
+			})
+		}
+	}
+
+	//  Gom map -> slice
+	products := make([]ProductResponse, 0, len(productsMap))
+	for _, v := range productsMap {
+		products = append(products, *v)
+	}
+
+	//  Lấy tổng số sản phẩm phù hợp điều kiện tìm kiếm
+	var total int
+	countQuery := `SELECT COUNT(*) FROM Products WHERE name LIKE ? OR description LIKE ?`
+	err = db.QueryRow(countQuery, searchTerm, searchTerm).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return products, total, nil
+}
