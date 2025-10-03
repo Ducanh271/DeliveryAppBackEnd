@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/smtp"
+	"strconv"
 	//	"strings"
 	"time"
 
@@ -142,6 +143,11 @@ func CreateShipper(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create user"})
 		return
 	}
+	err = models.UpdateStatusUserTx(tx, req.Email, 1)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error() /*"Failed to set status for shipper"*/})
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Transaction commit failed"})
 		return
@@ -242,7 +248,7 @@ func VerifyOTPHandler(c *gin.Context, db *sql.DB) {
 	}
 
 	// Cập nhật trạng thái xác thực
-	if err := models.VerifyUser(db, user.Email); err != nil {
+	if err := models.UpdateStatusUser(db, user.Email, 1); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not verify user"})
 		return
 	}
@@ -279,7 +285,11 @@ func LoginHandler(c *gin.Context, db *sql.DB) {
 		log.Println(err)
 		return
 	}
-	if !user.IsVerified {
+	if user.Status == 2 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Your account has been banned"})
+		return
+	}
+	if user.Status == 0 {
 		otp, err := generateOTP()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't generate otp"})
@@ -470,7 +480,104 @@ func ResetPasswordHandler(c *gin.Context, db *sql.DB) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
 }
+func GetAllCustomersHandler(c *gin.Context, db *sql.DB) {
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
 
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	users, total, err := models.GetAllUserWithType(db, "customer", page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get all user"})
+		return
+	}
+	totalPages := (total + limit - 1) / limit
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+		"pagination": gin.H{
+			"total":       total,
+			"page":        page,
+			"limit":       limit,
+			"total_pages": totalPages,
+		},
+	})
+
+}
+func GetAllShippersHandler(c *gin.Context, db *sql.DB) {
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	users, total, err := models.GetAllUserWithType(db, "shipper", page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get all user"})
+		return
+	}
+	totalPages := (total + limit - 1) / limit
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+		"pagination": gin.H{
+			"total":       total,
+			"page":        page,
+			"limit":       limit,
+			"total_pages": totalPages,
+		},
+	})
+
+}
+
+func BanUserAccountHandler(c *gin.Context, db *sql.DB) {
+	userIDstr := c.Param("id")
+	userID, err := strconv.ParseInt(userIDstr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to convert id"})
+		return
+	}
+	err = models.DeleteUserRefreshToken(db, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete refresh token this account"})
+		return
+	}
+	err = models.UpdateStatusUserByUserID(db, userID, 2)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to ban this user"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Banned user with id %d successfully", userID),
+	})
+}
+func UnBanUserAccountHandler(c *gin.Context, db *sql.DB) {
+	userIDstr := c.Param("id")
+	userID, err := strconv.ParseInt(userIDstr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to convert id"})
+		return
+	}
+	err = models.UpdateStatusUserByUserID(db, userID, 1)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unban this user"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Unban user with id %d successfully", userID),
+	})
+}
 func ProfileHandler(c *gin.Context, db *sql.DB) {
 	userID, exists := c.Get("userID")
 	if !exists {

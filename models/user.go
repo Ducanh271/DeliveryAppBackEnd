@@ -16,9 +16,9 @@ type User struct {
 	CreatedAt         time.Time  `json:"created_at"`
 	OTPCode           *string    `json:"-"`
 	OTPExpiresAt      *time.Time `json:"-"`
-	IsVerified        bool       `json:"is_verified"`
 	ResetOTP          *string    `json:"-"`
 	ResetOTPExpiresAt *time.Time `json:"-"`
+	Status            int        `json:"status"`
 }
 
 func CheckEmailExists(db *sql.DB, email string) (bool, error) {
@@ -48,12 +48,12 @@ func CreateUserTx(tx *sql.Tx, user *User) (int64, error) {
 }
 
 func GetUserByEmail(db *sql.DB, email string) (*User, error) {
-	query := "select id, name, email, password, phone, address, role, created_at, otp_code, otp_expires_at, is_verified, reset_otp, reset_otp_expires_at from users where email = ?"
+	query := "select id, name, email, password, phone, address, role, created_at, otp_code, otp_expires_at, status, reset_otp, reset_otp_expires_at from users where email = ?"
 	row := db.QueryRow(query, email)
 	var user User
 	var createdAtstr string
 
-	err := row.Scan(&user.ID, &user.Name, &user.Email, &user.Password, &user.Phone, &user.Address, &user.Role, &createdAtstr, &user.OTPCode, &user.OTPExpiresAt, &user.IsVerified, &user.ResetOTP, &user.ResetOTPExpiresAt)
+	err := row.Scan(&user.ID, &user.Name, &user.Email, &user.Password, &user.Phone, &user.Address, &user.Role, &createdAtstr, &user.OTPCode, &user.OTPExpiresAt, &user.Status, &user.ResetOTP, &user.ResetOTPExpiresAt)
 	if err != nil {
 		return nil, err
 	}
@@ -78,9 +78,20 @@ func UpdateOTPTx(tx *sql.Tx, userEmail string, otp string, expiry time.Time) err
 	_, err := tx.Exec(query, otp, expiry, userEmail)
 	return err
 }
-func VerifyUser(db *sql.DB, userEmail string) error {
-	updateQuery := `UPDATE users SET is_verified = true WHERE email = ?`
-	_, err := db.Exec(updateQuery, userEmail)
+func UpdateStatusUserByUserID(db *sql.DB, userID int64, status int) error {
+	updateQuery := `UPDATE users SET status = ? WHERE id = ?`
+	_, err := db.Exec(updateQuery, status, userID)
+	return err
+}
+func UpdateStatusUserTx(tx *sql.Tx, email string, status int) error {
+	updateQuery := `UPDATE users SET status = ? WHERE email = ?`
+	_, err := tx.Exec(updateQuery, status, email)
+	return err
+}
+
+func UpdateStatusUser(db *sql.DB, email string, status int) error {
+	updateQuery := `UPDATE users SET status = ? WHERE email = ?`
+	_, err := db.Exec(updateQuery, status, email)
 	return err
 }
 func ClearOTP(db *sql.DB, userID int64) error {
@@ -101,6 +112,43 @@ func UpdatePasswordByEmail(db *sql.DB, email, hashed string) error {
 	return err
 }
 
+// func get customer or shipper for admin
+func GetAllUserWithType(db *sql.DB, role string, page, limit int) ([]User, int, error) {
+	offset := (page - 1) * limit
+	var total int
+	err := db.QueryRow("select count(*) from users where role = ?", role).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+	query := "select id, name, email, phone, address, role, status from users where role = ? order by id limit ? offset ?"
+	rows, err := db.Query(query, role, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var users []User
+	for rows.Next() {
+		var user User
+		err := rows.Scan(
+			&user.ID,
+			&user.Name,
+			&user.Email,
+			&user.Phone,
+			&user.Address,
+			&user.Role,
+			&user.Status,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		users = append(users, user)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
+
+}
 func ClearResetOTP(db *sql.DB, userID int64) error {
 	_, err := db.Exec(`UPDATE users SET reset_otp = NULL, reset_otp_expires_at = NULL WHERE id = ?`, userID)
 	return err

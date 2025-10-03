@@ -244,6 +244,24 @@ func UpdateOrderShipper(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "update successfully"})
 
 }
+func AcceptOrderAdmin(c *gin.Context, db *sql.DB) {
+	orderIDstr := c.Param("id")
+	orderID, err := strconv.ParseInt(orderIDstr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+
+	OrderStatus := "processing"
+
+	err = models.UpdateStatusOrder(db, orderID, nil, &OrderStatus)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't update this order"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "update successfully"})
+
+}
 
 // func get order by shipper
 func GetOrdersByAdminHandler(c *gin.Context, db *sql.DB) {

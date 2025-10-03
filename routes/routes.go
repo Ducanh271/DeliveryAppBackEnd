@@ -84,6 +84,29 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	protected.DELETE("/admin/products/:id", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
 		handlers.DeleteProductHandler(c, db, cld)
 	})
+	protected.POST("/admin/orders/accept-order/:id", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.AcceptOrderAdmin(c, db)
+	})
+	protected.GET("/admin/customers", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.GetAllCustomersHandler(c, db)
+	})
+	protected.GET("/admin/shippers", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.GetAllShippersHandler(c, db)
+	})
+	protected.POST("/admin/shippers/ban-shipper/:id", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.BanUserAccountHandler(c, db)
+	})
+
+	protected.POST("/admin/shippers/unban-shipper/:id", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.UnBanUserAccountHandler(c, db)
+	})
+
+	protected.POST("/admin/customers/ban-customer/:id", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.BanUserAccountHandler(c, db)
+	})
+	protected.POST("/admin/customers/unban-customer/:id", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.UnBanUserAccountHandler(c, db)
+	})
 
 	protected.GET("/admin/orders", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
 		handlers.GetOrdersByAdminHandler(c, db)
