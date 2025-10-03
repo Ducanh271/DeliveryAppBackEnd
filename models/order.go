@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -339,6 +340,10 @@ func GetDetailOrder(db *sql.DB, orderID int64, userID int64, role string) (*GetO
 		).Scan(&exists)
 		if err != nil {
 			return nil, err
+		}
+		if !exists {
+			// Không có order thuộc về user hoặc shipper này
+			return nil, errors.New("unauthorized: you can't access this order")
 		}
 	}
 
