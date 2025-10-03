@@ -332,3 +332,43 @@ func GetOrdersByShipperHandler(c *gin.Context, db *sql.DB) {
 		},
 	})
 }
+
+// get received order by shipper
+func GetReceivedOrdersByShipperHandler(c *gin.Context, db *sql.DB) {
+	// Lấy query param
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	shipperIDstr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	shipperID := shipperIDstr.(int64)
+	orders, total, err := models.GetReceivedOrdersByShipper(db, shipperID, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	totalPages := (total + limit - 1) / limit
+
+	c.JSON(http.StatusOK, gin.H{
+		"orders": orders,
+		"pagination": gin.H{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
+}

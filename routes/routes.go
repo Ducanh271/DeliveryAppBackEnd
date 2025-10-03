@@ -121,4 +121,8 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	protected.GET("/shipper/orders", middleware.RoleMiddleWare("shipper"), func(c *gin.Context) {
 		handlers.GetOrdersByShipperHandler(c, db)
 	})
+	protected.GET("/shipper/orders/received-orders", middleware.RoleMiddleWare("shipper"), func(c *gin.Context) {
+		handlers.GetReceivedOrdersByShipperHandler(c, db)
+	})
+
 }

@@ -238,6 +238,69 @@ func GetOrdersByShipper(db *sql.DB, page, limit int) ([]OrderSummaryResponse, in
 
 	return orders, total, nil
 }
+func GetReceivedOrdersByShipper(db *sql.DB, shipperID int64, page, limit int) ([]OrderSummaryResponse, int, error) {
+	offset := (page - 1) * limit
+	var total int
+	err := db.QueryRow("select count(*) from orders").Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+	query := `SELECT o.id, o.user_id, o.shipper_id, o.payment_status, o.order_status, 
+		       o.latitude, o.longitude, o.total_amount, 
+		       o.thumbnail_id, o.created_at, o.updated_at,
+		       i.url AS thumbnail
+		FROM orders o
+		LEFT JOIN Images i ON o.thumbnail_id = i.id
+		where o.order_status = "shipping" and o.shipper_id = ?
+		ORDER BY o.id DESC limit ? offset ?`
+
+	rows, err := db.Query(query, shipperID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var orders []OrderSummaryResponse
+	for rows.Next() {
+		var order Order
+		var thumbnail sql.NullString
+
+		err := rows.Scan(
+			&order.ID,
+			&order.UserID,
+			&order.ShipperID,
+			&order.PaymentStatus,
+			&order.OrderStatus,
+			&order.Latitude,
+			&order.Longitude,
+			&order.TotalAmount,
+			&order.ThumbnailID,
+			&order.CreatedAt,
+			&order.UpdatedAt,
+			&thumbnail,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		resp := OrderSummaryResponse{
+			Order:     order,
+			Thumbnail: "",
+		}
+		if thumbnail.Valid {
+			resp.Thumbnail = thumbnail.String
+		}
+
+		orders = append(orders, resp)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return orders, total, nil
+}
+
 func GetOrderByID(db *sql.DB, orderID int64) (*Order, error) {
 	query := `
 		SELECT id, user_id , payment_status, order_status,
