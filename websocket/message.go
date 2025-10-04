@@ -9,6 +9,8 @@ type Message struct {
 	OrderID   int64     `json:"order_id"`
 	ToUserID  int64     `json:"to_user_id,omitempty"`
 	Content   string    `json:"content"`
+	Latitude  float64   `json:"latitude"`
+	Longitude float64   `json:"longitude"`
 	CreatedAt time.Time `json:"created_at,omitempty"`
 }
 

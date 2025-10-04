@@ -533,3 +533,40 @@ func CheckNumberOfOrdersShipper(db *sql.DB, userID int64) (int, error) {
 	err := db.QueryRow(query, userID).Scan(&num)
 	return num, err
 }
+
+// func
+func GetUserIDFromOrderID(db *sql.DB, orderID int64) (int64, error) {
+	query := "select user_id from orders where id = ?"
+	var userID int64
+	err := db.QueryRow(query, orderID).Scan(&userID)
+	return userID, err
+}
+
+func GetActiveOrderUserIDsByShipper(db *sql.DB, shipperID int64) ([]int64, error) {
+	query := `
+		SELECT DISTINCT user_id
+		FROM orders
+		WHERE shipper_id = ? AND status = 'shipping'
+	`
+
+	rows, err := db.Query(query, shipperID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var userIDs []int64
+	for rows.Next() {
+		var userID int64
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		userIDs = append(userIDs, userID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return userIDs, nil
+}

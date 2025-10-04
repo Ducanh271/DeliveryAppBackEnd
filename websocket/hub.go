@@ -104,6 +104,28 @@ func (h *Hub) HandleMessage(sender *Client, msg *Message) {
 		if err := h.SendToUser(msg.ToUserID, msg); err != nil {
 			log.Printf("Receiver is not online: %v", err)
 		}
+	case "location_update":
+		if msg.OrderID == 0 {
+			return
+		}
+		customerID, err := models.GetUserIDFromOrderID(h.DB, msg.OrderID)
+		if err != nil {
+			log.Printf("Can't find this order: %d, %v", msg.OrderID, err)
+			return
+		}
+		// Gửi vị trí cho customer
+		locationMsg := &Message{
+			Type:      "location_update",
+			OrderID:   msg.OrderID,
+			Content:   "Update shipper's location",
+			Latitude:  msg.Latitude,
+			Longitude: msg.Longitude,
+			CreatedAt: time.Now(),
+		}
+
+		if err := h.SendToUser(customerID, locationMsg); err != nil {
+			log.Printf("Customer %d not online: %v", customerID, err)
+		}
 	default:
 		// Broadcast cho tất cả, trừ người gửi
 		raw, _ := json.Marshal(msg)
