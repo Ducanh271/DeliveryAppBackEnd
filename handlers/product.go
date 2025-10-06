@@ -275,3 +275,11 @@ func SearchProductHandler(c *gin.Context, db *sql.DB) {
 		"products": products,
 	})
 }
+func GetNumberOfProductHandler(c *gin.Context, db *sql.DB) {
+	num, err := models.GetNumberOfProduct(db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get number of product"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"number of products": num})
+}

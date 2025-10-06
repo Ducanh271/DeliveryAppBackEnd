@@ -36,6 +36,17 @@ type ProductResponse struct {
 	ReviewCount int            `json:"review_count"`
 }
 
+// get number of products
+func GetNumberOfProduct(db *sql.DB) (int64, error) {
+	query := "select count(*) from Products"
+	var numProducts int64
+	err := db.QueryRow(query).Scan(&numProducts)
+	if err != nil {
+		return 0, err
+	}
+	return numProducts, nil
+}
+
 // create new products
 func CreateProductTx(tx *sql.Tx, p *Product) (int64, error) {
 	query := `

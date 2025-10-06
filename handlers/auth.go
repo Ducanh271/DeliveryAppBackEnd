@@ -612,3 +612,19 @@ func LogoutHandler(c *gin.Context, db *sql.DB) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
+func GetNumberOfCustomerHandler(c *gin.Context, db *sql.DB) {
+	num, err := models.GetNumberOfCustomer(db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get number of customer"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"number of customers": num})
+}
+func GetNumberOfShipperHandler(c *gin.Context, db *sql.DB) {
+	num, err := models.GetNumberOfShipper(db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get number of shipper"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"number of shippers": num})
+}

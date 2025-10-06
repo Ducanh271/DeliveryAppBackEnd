@@ -21,6 +21,24 @@ type User struct {
 	Status            int        `json:"status"`
 }
 
+func GetNumberOfCustomer(db *sql.DB) (int64, error) {
+	query := "select count(*) from users where role = 'customer'"
+	var num int64
+	err := db.QueryRow(query).Scan(&num)
+	if err != nil {
+		return 0, nil
+	}
+	return num, nil
+}
+func GetNumberOfShipper(db *sql.DB) (int64, error) {
+	query := "select count(*) from users where role = 'shipper'"
+	var num int64
+	err := db.QueryRow(query).Scan(&num)
+	if err != nil {
+		return 0, nil
+	}
+	return num, nil
+}
 func CheckEmailExists(db *sql.DB, email string) (bool, error) {
 	var exist int
 	query := "select 1 from users where email = ? limit 1"

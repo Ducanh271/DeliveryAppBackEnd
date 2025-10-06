@@ -263,6 +263,48 @@ func AcceptOrderAdmin(c *gin.Context, db *sql.DB) {
 
 }
 
+// func cancle order by user
+func CancleOrderByUserHandler(c *gin.Context, db *sql.DB) {
+	orderIDstr := c.Param("id")
+	orderID, err := strconv.ParseInt(orderIDstr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid orderID"})
+		return
+	}
+	userIDstr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID := userIDstr.(int64)
+	bool, err := models.CheckOrderUser(db, userID, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check order"})
+		return
+	}
+	if bool == false {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This order is not your"})
+		return
+	}
+	order, err := models.GetOrderByID(db, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get status of order"})
+		return
+	}
+	if order.OrderStatus != "pending" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "You can't cancel this order, because it's not pending"})
+		return
+	}
+	orderStatus := "cancelled"
+	err = models.UpdateStatusOrder(db, orderID, nil, &orderStatus)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update this order"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Cancelled order successfully"})
+
+}
+
 // func get order by shipper
 func GetOrdersByAdminHandler(c *gin.Context, db *sql.DB) {
 	// Lấy query param
@@ -371,4 +413,12 @@ func GetReceivedOrdersByShipperHandler(c *gin.Context, db *sql.DB) {
 			"total_pages": totalPages,
 		},
 	})
+}
+func GetNumberOfOrderAndRevenueHandler(c *gin.Context, db *sql.DB) {
+	num, revenue, err := models.GetNumberAndRevenueOfOrders(db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get infor order"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"number of order": num, "revenue": revenue})
 }

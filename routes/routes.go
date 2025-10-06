@@ -54,10 +54,10 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	// Profile (bảo vệ bằng JWT)
 	protected := api.Group("/")
 	protected.Use(middleware.AuthMiddleware())
-	// chỉ cho customer
-	protected.GET("/profile", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
+	protected.GET("/profile", middleware.RoleMiddleWare("customer", "role"), func(c *gin.Context) {
 		handlers.ProfileHandler(c, db)
 	})
+	// chỉ cho customer
 	protected.POST("/create-order", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
 		handlers.CreateOrderHandler(c, db)
 	})
@@ -72,6 +72,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	})
 	protected.GET("/messages/:id", middleware.RoleMiddleWare("customer", "admin", "shipper"), func(c *gin.Context) {
 		handlers.GetMessageHandler(c, db)
+	})
+	protected.DELETE("/orders/:id", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
+		handlers.CancleOrderByUserHandler(c, db)
 	})
 
 	// chi cho admin
@@ -124,5 +127,16 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	protected.GET("/shipper/orders/received-orders", middleware.RoleMiddleWare("shipper"), func(c *gin.Context) {
 		handlers.GetReceivedOrdersByShipperHandler(c, db)
 	})
-
+	protected.GET("/admin/orders/num-revenue", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.GetNumberOfOrderAndRevenueHandler(c, db)
+	})
+	protected.GET("/admin/customers/num-customer", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.GetNumberOfCustomerHandler(c, db)
+	})
+	protected.GET("/admin/shippers/num-shippers", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.GetNumberOfShipperHandler(c, db)
+	})
+	protected.GET("/admin/products/num-products", middleware.RoleMiddleWare("admin"), func(c *gin.Context) {
+		handlers.GetNumberOfProductHandler(c, db)
+	})
 }

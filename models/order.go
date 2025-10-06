@@ -89,6 +89,21 @@ type UpdateOrderRequest struct {
 	OrderStatus   string `json:"order_status"`
 }
 
+func GetNumberAndRevenueOfOrders(db *sql.DB) (int64, float64, error) {
+	query := "select count(*) from orders where order_status != 'cancelled' "
+	var numOrder int64
+	var revenue float64
+	err := db.QueryRow(query).Scan(&numOrder)
+	if err != nil {
+		return 0, 0, err
+	}
+	query2 := "select coalesce(sum(total_amount), 0) from orders where payment_status = 'paid'"
+	err = db.QueryRow(query2).Scan(&revenue)
+	if err != nil {
+		return 0, 0, err
+	}
+	return numOrder, revenue, nil
+}
 func CheckOrderUser(db *sql.DB, userID, orderID int64) (bool, error) {
 	query := "select 1 from orders where user_id = ? and id = ? limit 1"
 	var result int
