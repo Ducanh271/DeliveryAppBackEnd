@@ -12,6 +12,12 @@ import (
 
 const MaxOrders = 10
 
+type shipperInfoRes struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Phone string `json:"phone"`
+}
+
 type OrdersShipperResponse struct {
 	OrderID   int64   `json:"order_id"`
 	Longitude float64 `json:"longitude"`
@@ -421,4 +427,41 @@ func GetNumberOfOrderAndRevenueHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"number of order": num, "revenue": revenue})
+}
+
+func GetShipperInfoByOrderIDHandler(c *gin.Context, db *sql.DB) {
+	orderIDStr := c.Param("id")
+	orderID, err := strconv.ParseInt(orderIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+	userIDstr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID := userIDstr.(int64)
+	bool, err := models.CheckOrderUser(db, userID, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check order"})
+		return
+	}
+	if bool == false {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This order is not your"})
+		return
+	}
+	var res shipperInfoRes
+	res.ID, res.Name, res.Phone, err = models.GetShipperInfoFromOrderID(db, orderID)
+
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No shipper assigned to this order"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get shipper info"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"shipper": res})
 }

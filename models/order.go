@@ -585,3 +585,26 @@ func GetActiveOrderUserIDsByShipper(db *sql.DB, shipperID int64) ([]int64, error
 
 	return userIDs, nil
 }
+
+// func get shipper infor from order_id
+func GetShipperInfoFromOrderID(db *sql.DB, orderID int64) (shipperID int64, shipperName string, shipperPhone string, err error) {
+	shipperID = 0
+	shipperName = ""
+	shipperPhone = ""
+
+	query := `
+		SELECT u.id, u.name, u.phone 
+		FROM users u 
+		WHERE u.id = (SELECT shipper_id FROM orders WHERE id = ?)
+	`
+	err = db.QueryRow(query, orderID).Scan(&shipperID, &shipperName, &shipperPhone)
+
+	if err == sql.ErrNoRows {
+		return 0, "", "", err
+	}
+	if err != nil {
+		return 0, "", "", err
+	}
+
+	return shipperID, shipperName, shipperPhone, nil
+}

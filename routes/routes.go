@@ -67,6 +67,9 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	protected.GET("/orders/:id", middleware.RoleMiddleWare("customer", "admin", "shipper"), func(c *gin.Context) {
 		handlers.GetOrderDetailHandler(c, db)
 	})
+	protected.GET("/orders/shipper-info/:id", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
+		handlers.GetShipperInfoByOrderIDHandler(c, db)
+	})
 	protected.POST("/create-review", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
 		handlers.CreateNewReviewHandler(c, db)
 	})
