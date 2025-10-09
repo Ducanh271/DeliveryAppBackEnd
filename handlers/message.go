@@ -29,8 +29,12 @@ func GetMessageHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 	if !isBelong {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "This order is not belong to you"})
-		return
+		isBelong, _ := models.CheckShipperOrder(db, userID.(int64), orderID)
+		if !isBelong {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "This order is not belong to you"})
+			return
+		}
+
 	}
 
 	// Lấy query params
