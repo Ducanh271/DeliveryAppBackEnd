@@ -16,10 +16,10 @@ import (
 )
 
 type CreateReviewRequest struct {
-	ProductID int64  `form:"product_id" binding:"required"`
-	OrderID   int64  `form:"order_id" binding:"required"`
-	Rate      int8   `form:"rate"`
-	Content   string `form:"content"`
+	ProductID int64  `json:"product_id" binding:"required"`
+	OrderID   int64  `json:"order_id" binding:"required"`
+	Rate      int8   `json:"rate"`
+	Content   string `json:"content"`
 }
 
 type ReviewInfor struct {
@@ -63,17 +63,17 @@ func CreateNewReviewHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	form, err := c.MultipartForm()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Can't read the file image"})
-		return
-	}
-	files := form.File["images"]
-	if len(files) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Review just have > 0 image"})
-		return
-	}
+	//
+	// form, err := c.MultipartForm()
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Can't read the file image"})
+	// 	return
+	// }
+	// files := form.File["images"]
+	// if len(files) == 0 {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Review just have > 0 image"})
+	// 	return
+	// }
 
 	// Bắt đầu transaction
 	tx, err := db.Begin()
@@ -111,30 +111,30 @@ func CreateNewReviewHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Upload ảnh
-	var urls []string
-	for _, fileHeader := range files {
-		openFile, err := fileHeader.Open()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't open image"})
-			return
-		}
-
-		url, publicID, err := uploadToCloudinary(openFile, fileHeader)
-		openFile.Close()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't upload file image"})
-			return
-		}
-		urls = append(urls, url)
-
-		_, err = models.CreateReviewImagesTx(tx, review.ID, url, publicID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't save url image"})
-			return
-		}
-	}
-
+	// // Upload ảnh
+	// var urls []string
+	// for _, fileHeader := range files {
+	// 	openFile, err := fileHeader.Open()
+	// 	if err != nil {
+	// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't open image"})
+	// 		return
+	// 	}
+	//
+	// 	url, publicID, err := uploadToCloudinary(openFile, fileHeader)
+	// 	openFile.Close()
+	// 	if err != nil {
+	// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't upload file image"})
+	// 		return
+	// 	}
+	// 	urls = append(urls, url)
+	//
+	// 	_, err = models.CreateReviewImagesTx(tx, review.ID, url, publicID)
+	// 	if err != nil {
+	// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't save url image"})
+	// 		return
+	// 	}
+	// }
+	//
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Can't commit transaction"})
@@ -144,7 +144,7 @@ func CreateNewReviewHandler(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Created new review successfully",
 		"review":  review,
-		"images":  urls,
+		// "images":  urls,
 	})
 }
 

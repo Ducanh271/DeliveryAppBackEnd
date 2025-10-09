@@ -54,7 +54,7 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	// Profile (bảo vệ bằng JWT)
 	protected := api.Group("/")
 	protected.Use(middleware.AuthMiddleware())
-	protected.GET("/profile", middleware.RoleMiddleWare("customer", "role"), func(c *gin.Context) {
+	protected.GET("/profile", middleware.RoleMiddleWare("customer", "shipper"), func(c *gin.Context) {
 		handlers.ProfileHandler(c, db)
 	})
 	// chỉ cho customer
