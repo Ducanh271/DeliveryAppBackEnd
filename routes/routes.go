@@ -73,7 +73,8 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cld *cloudinary.Cloudinary) {
 	protected.POST("/create-review", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
 		handlers.CreateNewReviewHandler(c, db)
 	})
-	protected.GET("/messages/:id", middleware.RoleMiddleWare("customer", "admin", "shipper"), func(c *gin.Context) {
+	// Lấy tin nhắn theo đơn, hỗ trợ phân trang
+	protected.GET("/orders/:id/messages", middleware.RoleMiddleWare("customer", "admin", "shipper"), func(c *gin.Context) {
 		handlers.GetMessageHandler(c, db)
 	})
 	protected.DELETE("/orders/:id", middleware.RoleMiddleWare("customer"), func(c *gin.Context) {
