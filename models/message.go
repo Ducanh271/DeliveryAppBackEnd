@@ -30,13 +30,28 @@ func SaveMessage(db *sql.DB, msg *Message) error {
 }
 
 // GetMessagesByOrder lấy tất cả tin nhắn theo order_id
-func GetMessagesByOrder(db *sql.DB, orderID int64) ([]Message, error) {
-	rows, err := db.Query(`
-		SELECT id, order_id, sender_id, receiver_id, content, is_read, created_at
-		FROM messages
-		WHERE order_id = ?
-		ORDER BY created_at ASC
-	`, orderID)
+func GetMessagesByOrder(db *sql.DB, orderID int64, limit int, before string) ([]Message, error) {
+	var rows *sql.Rows
+	var err error
+
+	if before == "" {
+		// Lấy tin nhắn mới nhất
+		rows, err = db.Query(`
+            SELECT id, order_id, sender_id, receiver_id, content, is_read, created_at
+            FROM messages
+            WHERE order_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?`, orderID, limit)
+	} else {
+		// Lấy tin nhắn cũ hơn trước timestamp hoặc id
+		rows, err = db.Query(`
+            SELECT id, order_id, sender_id, receiver_id, content, is_read, created_at
+            FROM messages
+            WHERE order_id = ? AND id < ?
+            ORDER BY created_at DESC
+            LIMIT ?`, orderID, before, limit)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -51,9 +66,13 @@ func GetMessagesByOrder(db *sql.DB, orderID int64) ([]Message, error) {
 		messages = append(messages, m)
 	}
 
+	// Client có thể đảo ngược mảng để hiển thị từ cũ -> mới
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+
 	return messages, nil
 }
-
 func GetUnreadCountByUserID(db *sql.DB, userID int64, orderID int64) (int, error) {
 	var unRead int
 	query := `select count(*) from messages where user_id = ? and order_id = ? and is_read = false`

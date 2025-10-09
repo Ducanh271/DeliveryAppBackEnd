@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -39,6 +40,7 @@ func LoadConfig() {
 	}
 	//cloudinary url
 	CloudinaryURL = os.Getenv("CLOUDINARY_URL")
+	fmt.Println(CloudinaryURL)
 	// Gán giá trị
 	JWTSecret = os.Getenv("JWT_SECRET")
 	DBUser = os.Getenv("DB_USER")

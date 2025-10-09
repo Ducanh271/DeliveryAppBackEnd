@@ -90,18 +90,27 @@ func (h *Hub) HandleMessage(sender *Client, msg *Message) {
 		if msg.ToUserID == 0 || msg.ToUserID == sender.ID {
 			return
 		}
+		log.Printf("%v", sender.ID)
 		msg.CreatedAt = time.Now()
 		messageModel := &models.Message{
 			OrderID:    msg.OrderID,
 			FromUserID: sender.ID,
 			ToUserID:   msg.ToUserID,
 			Content:    msg.Content,
-			CreatedAt:  msg.CreatedAt,
+			CreatedAt:  time.Now(),
+		}
+		message := &Message{
+			Type:       msg.Type,
+			OrderID:    msg.OrderID,
+			FromUserID: sender.ID,
+			ToUserID:   msg.ToUserID,
+			Content:    msg.Content,
+			CreatedAt:  time.Now(),
 		}
 		if err := models.SaveMessage(h.DB, messageModel); err != nil {
 			log.Printf("Failed to save message: %v", err)
 		}
-		if err := h.SendToUser(msg.ToUserID, msg); err != nil {
+		if err := h.SendToUser(msg.ToUserID, message); err != nil {
 			log.Printf("Receiver is not online: %v", err)
 		}
 	case "location_update":
